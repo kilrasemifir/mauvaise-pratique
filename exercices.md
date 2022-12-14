@@ -22,3 +22,6 @@ Faite des tests d'intégration pour tester les fonctionnalités de l'application
 ### Exercice 5
 
 Utiliser JMETER pour tester les performances de l'application.
+Chercher les points faibles de l'application et les corriger.
+
+
