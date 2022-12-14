@@ -1,16 +1,15 @@
 package fr.kira.formation.competences.monolite.validations;
 
-import fr.kira.formation.competences.monolite.personnes.Personne;
 import org.springframework.web.bind.annotation.*;
 
 @RequestMapping("/api/validations")
 @RestController
 @CrossOrigin
-public class ValidationController {
+public class DemandeController {
 
     private final DemandeService validationService;
 
-    public ValidationController(DemandeService validationService) {
+    public DemandeController(DemandeService validationService) {
         this.validationService = validationService;
     }
 
@@ -25,13 +24,13 @@ public class ValidationController {
     }
 
     @PostMapping("")
-    public DemandeValidation save(@RequestBody DemandeValidation demandeValidation) {
-        return validationService.save(demandeValidation);
+    public DemandeValidation save(@RequestBody DemandeValidation demandeValidation, @RequestParam String demandeurId) {
+        return validationService.save(demandeValidation, demandeurId);
     }
 
     @PutMapping("")
     public DemandeValidation update(@RequestBody DemandeValidation demandeValidation) {
-        return validationService.save(demandeValidation);
+        return validationService.update(demandeValidation);
     }
 
     @DeleteMapping("{id}")

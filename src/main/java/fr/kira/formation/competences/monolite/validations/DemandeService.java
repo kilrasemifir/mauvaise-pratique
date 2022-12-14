@@ -1,9 +1,9 @@
 package fr.kira.formation.competences.monolite.validations;
 
-import fr.kira.formation.competences.monolite.competences.Competence;
+import fr.kira.formation.competences.monolite.changement.Changement;
+import fr.kira.formation.competences.monolite.changement.ChangementService;
 import fr.kira.formation.competences.monolite.competences.CompetenceService;
 import fr.kira.formation.competences.monolite.personnes.NiveauCompetence;
-import fr.kira.formation.competences.monolite.personnes.Personne;
 import fr.kira.formation.competences.monolite.personnes.PersonneRepository;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Service;
@@ -14,18 +14,16 @@ import java.util.List;
 @Service
 public class DemandeService {
 
-    private final ValidationRepository validationRepository;
-    private final PersonneRepository pr;
-    private final CompetenceService competenceService;
+    private final DemandeValidationRepository validationRepository;
+    private final ChangementService changementService;
 
-    public DemandeService(ValidationRepository validationRepository, PersonneRepository pr, CompetenceService competenceRepository) {
-        this.validationRepository = validationRepository;
-        this.pr = pr;
-        this.competenceService = competenceRepository;
-    }
-
-    public DemandeValidation save(DemandeValidation demandeValidation) {
-        return validationRepository.insert(demandeValidation);
+    public DemandeValidation save(DemandeValidation demandeValidation, String demandeurId) {
+        if (pr.existsById(demandeurId)) {
+            demandeValidation.setDemandeurId(demandeurId);
+            return validationRepository.save(demandeValidation);
+        } else {
+            throw new ResponseStatusException(HttpStatusCode.valueOf(404), "Personne not found");
+        }
     }
 
     public DemandeValidation update(DemandeValidation demandeValidation) {
@@ -37,7 +35,17 @@ public class DemandeService {
     }
 
     public DemandeValidation findById(String id) {
-        return validationRepository.findById(id).orElseThrow(()-> new ResponseStatusException(HttpStatusCode.valueOf(404), "Demande not found"));
+        var r = validationRepository.findById(id).orElseThrow(()-> new ResponseStatusException(HttpStatusCode.valueOf(404), "Demande not found"));
+        return r;
+    }
+
+
+
+    public DemandeService(DemandeValidationRepository validationRepository, ChangementService changementService, PersonneRepository pr, CompetenceService competenceRepository) {
+        this.validationRepository = validationRepository;
+        this.changementService = changementService;
+        this.pr = pr;
+        this.competenceService = competenceRepository;
     }
 
     public DemandeValidation validate(String pi, String id){
@@ -49,13 +57,19 @@ public class DemandeService {
         }
         NiveauCompetence rc = null;
         for (var c : pvc) {
-            if (c.getCompetence().getId().equals(d.getCompetence().getId())) {
+            if (c.getCompetence().getId().equals(d.getCompetenceId())) {
                 rc = c;
             }
         }
+
+        var ch = new Changement();
+        ch.setCompetenceId(d.getCompetenceId());
+        ch.setPersonneId(d.getDemandeurId());
+        ch.setAncienNiveau(0);
+
         if (rc == null) {
             throw new ResponseStatusException(HttpStatusCode.valueOf(403), "Vous ne pouvez pas valider une compétence que vous ne possedez pas");
-        } else if (pv.getRole()!="manager"){
+        } else if (pv.getRole() != "manager"){
             throw new ResponseStatusException(HttpStatusCode.valueOf(403), "Vous ne pouvez pas valider une compétence que vous ne possedez pas");
         }
 
@@ -64,22 +78,36 @@ public class DemandeService {
         }
 
         d.setStatut("VALIDEE");
-        d.setValideur(pv);
+        d.setValideurId(pv.getId());
         boolean cond = false;
         for (NiveauCompetence nv: pv.getCompetences()) {
-            if (nv.getCompetence().getId().equals(d.getCompetence().getId())){
+            if (nv.getCompetence().getId().equals(d.getCompetenceId())) {
                 nv.setNiveau(d.getNiveauDemander());
                 cond = true;
             }
         }
         if (cond == false){
-            pv.getCompetences().add(new NiveauCompetence(d.getCompetence(), d.getNiveauDemander()));
+            var cc = competenceService.findById(d.getCompetenceId());
+            pv.getCompetences().removeIf(c -> {
+                if (c.getCompetence().getId().equals(d.getCompetenceId())) {
+                    ch.setAncienNiveau(c.getNiveau());
+                    return true;
+                }
+                return c.getCompetence().getId().equals(d.getCompetenceId());
+            });
+            ch.setNouveauNiveau(d.getNiveauDemander());
+            pv.getCompetences().add(new NiveauCompetence(cc, d.getNiveauDemander()));
         }
+        changementService.enregistrerChangement(ch);
         pr.save(pv);
         return update(d);
     }
+    private final CompetenceService competenceService;
 
     public List<DemandeValidation> findAll() {
         return validationRepository.findAll();
     }
+
+
+    private final PersonneRepository pr;
 }
